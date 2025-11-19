@@ -1,8 +1,22 @@
 # Check cmake version meets our requirements
 cmake_minimum_required(VERSION 3.3)
 
+#-----------------------------------------------------------------------
+# Enforce an out-of-source build.
+#
+if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
+  message(STATUS "Cimrman requires an out-of-source build.")
+  message(STATUS "Please remove these files from ${CMAKE_BINARY_DIR} first:")
+  message(STATUS "  CMakeCache.txt")
+  message(STATUS "  CMakeFiles")
+  message(STATUS "Once these files are removed, create a separate directory")
+  message(STATUS "and run CMake from there, pointing it to:")
+  message(STATUS "  ${CMAKE_SOURCE_DIR}")
+  message(FATAL_ERROR "in-source build detected")
+endif()
+
 # Declare project, which will configure compiler for us
-project(FalaiseCimrmanPlugin)
+project(FalaiseCimrmanPlugin VERSION 1.0.0)
 
 # #Finds ROOT and Falaise packages and defines cmake variables
 find_package(Falaise REQUIRED)
