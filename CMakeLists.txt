@@ -1,5 +1,5 @@
 # Check cmake version meets our requirements
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.12)
 
 #-----------------------------------------------------------------------
 # Enforce an out-of-source build.
@@ -18,9 +18,28 @@ endif()
 # Declare project, which will configure compiler for us
 project(FalaiseCimrmanPlugin VERSION 1.0.0)
 
-# #Finds ROOT and Falaise packages and defines cmake variables
+option(CIMRMAN_INPLACE_INSTALL "Install the Cimrman module in the Falaise installation tree" ON)
+
+# Finds Falaise packages and defines cmake variables
 find_package(Falaise REQUIRED)
-find_package(ROOT    REQUIRED)
+message( STATUS "Found Falaise : ${Falaise_FOUND}")
+message( STATUS "- Falaise version : ${Falaise_VERSION}")
+
+if (CIMRMAN_INPLACE_INSTALL)
+  message( STATUS "- Falaise_CMAKE_CONFIG_DIR: '${Falaise_CMAKE_CONFIG_DIR}'")
+  set(FalaiseModuleInstallDir "${Falaise_CMAKE_CONFIG_DIR}/../../Falaise/modules")
+  message( STATUS "- Falaise plug-in dir : '${FalaiseModuleInstallDir}'")
+  set(CMAKE_INSTALL_PLUGINDIR "${FalaiseModuleInstallDir}")
+else()
+  set(CMAKE_INSTALL_PLUGINDIR "${CMAKE_INSTALL_PREFIX}/lib/Falaise/modules")
+endif()
+    
+  
+# Finds ROOT
+find_package(ROOT REQUIRED)
+message( STATUS "Found ROOT : ${ROOT_FOUND}")
+message( STATUS "- ROOT version : ${ROOT_VERSION}")
+message( STATUS "- ROOT libraries : ${ROOT_LIBRARIES}")
 
 include_directories(include ${Bayeux_INCLUDE_DIRS})
 
@@ -72,23 +91,27 @@ add_library(Falaise_Cimrman SHARED
   ${Cimrman_SOURCES}
   ${Cimrman_HEADERS} )
 
+target_include_directories(Falaise_Cimrman PUBLIC Falaise::Falaise PUBLIC ROOT::Root)
 
 target_link_libraries(Falaise_Cimrman Falaise::Falaise ${ROOT_LIBRARIES} ROOT::Geom)
 # PUBLIC Falaise::Falaise FalaiseModule ${ROOT_LIBRARIES} ROOT::Geom)  
+
+set_target_properties(Falaise_Cimrman PROPERTIES INSTALL_RPATH_USE_LINK_PATH 1)
 
 # Apple linker requires dynamic lookup of symbols, so we
 # add link flags on this platform
 if(APPLE)
   set_target_properties(Falaise_Cimrman
     PROPERTIES
-      LINK_FLAGS "-undefined dynamic_lookup"
-      INSTALL_RPATH "@loader_path"
-    )
+    LINK_FLAGS "-undefined dynamic_lookup"
+    INSTALL_RPATH "@loader_path"
+  )
 endif()
 
-# Install Targets
-install(TARGETS Falaise_Cimrman DESTINATION ${CMAKE_INSTALL_PLUGINDIR})
 
+# Install Targets
+message( STATUS "CMAKE_INSTALL_PLUGINDIR = '${CMAKE_INSTALL_PLUGINDIR}' ")
+install(TARGETS Falaise_Cimrman DESTINATION ${CMAKE_INSTALL_PLUGINDIR})
 
 # Test support:
 option(FalaiseCimrmanPlugin_ENABLE_TESTING "Build unit testing system for FalaiseCimrmanPlugin" OFF)
