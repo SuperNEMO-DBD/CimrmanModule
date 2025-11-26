@@ -159,10 +159,20 @@ namespace tkrec {
       _config_.TTD_label = config_.fetch_string("TTD_label");
     }
  
-    // Extract properties with prefix 'eventrec.' :
     datatools::properties recParamConfig;
+    // Extract properties with prefix 'eventrec.' :
     config_.export_and_rename_starting_with(recParamConfig, "eventrec.", "");
+    
+    // Extract properties with prefix 'clustering.' :
+    config_.export_and_rename_starting_with(recParamConfig, "clustering.", "clustering.");
+    
+    // Extract properties with prefix 'alphas.' :
+    config_.export_and_rename_starting_with(recParamConfig, "alphas.", "alphas.");
+    
+    // Extract properties with prefix 'polylines.' :
+    config_.export_and_rename_starting_with(recParamConfig, "polylines.", "polylines.");
     _config_.recConfig.parse(recParamConfig);
+    
     return;
   }
 
@@ -205,7 +215,9 @@ namespace tkrec {
     _populate_working_event_(workItem);
     
     // Run Cimrman reconstruction process
+    DT_LOG_DEBUG(_config_.verbosity, "Reconstruction starting");
     _work_->palgo->process(_work_->event);	
+	  DT_LOG_DEBUG(_config_.verbosity, "Reconstruction finished \n");
 	
     // Create or reset TCD bank
     auto & the_tracker_clustering_data
@@ -264,6 +276,11 @@ namespace tkrec {
 	          SWCR[3] = calohit->get_geom_id().get(4);
 	          break;
           case 1252:
+	          SWCR[0] = calohit->get_geom_id().get(1);
+	          SWCR[1] = calohit->get_geom_id().get(2);
+	          SWCR[2] = calohit->get_geom_id().get(3);
+	          break;
+	        case 1251:
 	          SWCR[0] = calohit->get_geom_id().get(1);
 	          SWCR[1] = calohit->get_geom_id().get(2);
 	          SWCR[2] = calohit->get_geom_id().get(3);
@@ -340,6 +357,7 @@ namespace tkrec {
 
 	    const auto & falaiseTCDbank = workItem.get<tracker_clustering_data>(_config_.TCD_label);
 	    DT_THROW_IF(falaiseTCDbank.solutions().empty(), std::logic_error, "no TCD solution!");
+	    
       const auto & solution = falaiseTCDbank.solutions().front();
       //DT_LOG_DEBUG(_config_.verbosity, "Nb input cluster estimates = " << solution->get_clusters().size());
       
@@ -357,6 +375,7 @@ namespace tkrec {
         {
           DT_THROW_IF(falaise_hit->get_side() != side, std::logic_error, "Input cluster with hits on both sides");
           DT_THROW_IF(falaise_hit->is_prompt() != prompt, std::logic_error, "Input cluster with both prompt and dealyed hits");
+          
           for(auto & hit : _work_->event.get_tracker_hits())
           {
             if( hit->get_CDbank_tr_hit()->get_hit_id() == falaise_hit->get_hit_id() )
@@ -374,14 +393,16 @@ namespace tkrec {
     }
     
     DT_LOG_DEBUG(_config_.verbosity, "Nb input prompt clusters = " << 
-                                    std::count_if(_work_->event.get_preclusters().begin(), _work_->event.get_preclusters().end(),
+                                    std::count_if(_work_->event.get_preclusters().begin(), 
+                                                  _work_->event.get_preclusters().end(),
                                                  [](const auto & precl){ return precl->is_prompt();} ) ); 
                                                  
     DT_LOG_DEBUG(_config_.verbosity, "Nb input delayed clusters = " << 
-                                    std::count_if(_work_->event.get_preclusters().begin(), _work_->event.get_preclusters().end(),
+                                    std::count_if(_work_->event.get_preclusters().begin(), 
+                                                  _work_->event.get_preclusters().end(),
                                                  [](const auto & precl){ return precl->is_delayed();} ) ); 
                                                  
-    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated \n");
+    DT_LOG_DEBUG(_config_.verbosity, "Working event has been populated\n");
     
     return;
   }

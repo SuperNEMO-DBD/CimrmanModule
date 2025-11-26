@@ -1,6 +1,22 @@
 #ifndef FALAISE_CIMRMAN_ALGOS_H
 #define FALAISE_CIMRMAN_ALGOS_H
 
+// Standard headers
+#include <iomanip>
+#include <algorithm>
+#include <vector>
+#include <stack>
+
+// Root:
+#include <TH2F.h>
+#include <TCanvas.h>
+
+// Boost:
+#include <boost/multi_array.hpp>
+
+// Bayeux:
+#include <bayeux/datatools/exception.h>
+#include <bayeux/datatools/clhep_units.h>
 #include <bayeux/datatools/logger.h>
 #include <bayeux/datatools/properties.h>
 
@@ -8,9 +24,7 @@
 #include "tkrec/Event.h"
 #include "tkrec/Geometry.h"
 #include "tkrec/Visu.h"
-
-// Bayeux:
-#include <bayeux/datatools/clhep_units.h>
+#include "tkrec/Sinogram.h"
 
 
 namespace tkrec {
@@ -29,46 +43,53 @@ namespace tkrec {
   struct ClusteringConfing
   {
     bool save_sinograms = false;
-    double max_distance = 3.0 * 44.0 * CLHEP::mm; 
+    double max_distance = 130.0 * CLHEP::mm; // 3.0 * 44.0 = 132
     double hit_association_distance = 6.0 * CLHEP::mm;
-    uint32_t no_iterations = 2u;
+    uint32_t iterations = 2u;
     uint32_t resolution_phi = 100u; // No bins
-    uint32_t resolution_r = 250u; // No bins
+    uint32_t resolution_r = 200u; // No bins
     double max_initial_precision_r = 6.0 * CLHEP::mm; 
     double zoom_factor = 10.0;
+    double uncertainty = 3.0 * CLHEP::mm;
+  };
+
+  /// Config for alpha clustering algorithms
+  struct AlphaConfig
+  {  
+    uint32_t clustering_resolution_phi = 100u; // No bins  
+    double min_possible_drift_time = 0.0 * CLHEP::ns; 
+    double max_possible_drift_time = 5000.0 * CLHEP::ns; 
+    double time_step = 50.0 * CLHEP::ns; 
+
+    bool save_sinograms = false;
+    uint32_t iterations = 2u;
+    double zoom_factor = 10.0;
+    double phi_step = 2.0 * CLHEP::deg;
+    uint32_t resolution_r = 30u; // No bins
+    double delta_r = 60.0 * CLHEP::mm;
     double uncertainty = 2.0 * CLHEP::mm;
   };
 
   /// Config for kinked trajectory reconstruction algorithms
   struct PolylinesConfig
   {  
-    double max_extention_distance = 120.0 * CLHEP::mm;  
-    double max_vertical_distance = 4.0 * CLHEP::mm; 
-    double min_tracker_hits_distance = 100.0 * CLHEP::mm; 
+    // sharp kink reconstruction
+    double max_vertical_distance = 40.0 * CLHEP::mm; 
+    double max_tracker_hits_distance = 100.0 * CLHEP::mm; 
     double max_kink_angle = 120.0 * CLHEP::deg;
-    double max_trajectories_middlepoint_distance = 10.0 * CLHEP::mm; 
-    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
-    double max_trajectory_connection_angle = 50.0 * CLHEP::deg;
     double min_distance_from_foil = 75.0 * CLHEP::mm; 
-    double min_distance_from_main_walls = 0.0 * CLHEP::mm;
-    double min_distance_from_X_walls = 0.0 * CLHEP::mm;
+    double min_distance_from_main_walls = 50.0 * CLHEP::mm;
+    double min_distance_from_X_walls = 50.0 * CLHEP::mm;
+    
+    // clustering refinements
+    double max_extention_distance = 120.0 * CLHEP::mm;  
+
+    // small kink reconstruction
+    double max_trajectories_middlepoint_distance = 15.0 * CLHEP::mm; 
+    double max_trajectory_endpoints_distance = 75.0 * CLHEP::mm;
+    double max_trajectory_connection_angle = 40.0 * CLHEP::deg;
   };
   
-  /// Config for kinked trajectory reconstruction algorithms
-  struct AlphaConfig
-  {  
-    uint32_t clustering_resolution_phi = 100u; // No bins  
-    bool save_sinograms = false;
-    uint32_t resolution_r = 100u; // No bins
-    double phi_step = 0.5 * CLHEP::deg;
-    double max_r = 30.0 * CLHEP::mm;
-    double time_step = 100.0 * CLHEP::ns; 
-    double uncertainty = 2.0 * CLHEP::mm;
-    double min_possible_drift_time = 0.0 * CLHEP::ns; 
-    double max_possible_drift_time = 5000.0 * CLHEP::ns; 
-    double zoom_factor = 10.0;
-  };
-
   /// Configuration parameters for event tracking reconstruction
   struct CimrmanAlgoConfig
   {
@@ -83,13 +104,16 @@ namespace tkrec {
     double default_sigma_r = 2.0 * CLHEP::mm;
     double chi_square_threshold = 5.0; ///< dimensionless
 
-    // For electron reconstruction modes
-    ClusteringConfing clustering;      
-    PolylinesConfig polylines;
+    /// Configuration of clustering algorihtms
+    ClusteringConfing clustering;
+      
+    /// Configuration of alpha clustering algorihtms
     AlphaConfig alphas;
-
+      
+    /// Configuration of polyline reconstruction algorihtms 
+    PolylinesConfig polylines;
+  
     void parse(const datatools::properties & config_);
-    
   };
 
   /// Main cluster/track reconstruction class.
@@ -123,7 +147,8 @@ namespace tkrec {
                                std::vector<ClusterHdl> & clusters);
     void find_cluster_Legendre(const std::vector<TrackerHitHdl> & hits, 
                                double & phi_estimate,
-                               double & r_estimate) const;
+                               double & r_estimate);
+                               
     void separate_close_hits_to_line(std::vector<TrackerHitHdl> & hits,
                                      std::vector<TrackerHitHdl> & hits_separated,
                                      const double phi,
@@ -179,6 +204,9 @@ namespace tkrec {
     CimrmanAlgoConfig _config_; ///< Configuration
     Event * _event_ = nullptr; ///< Working event to be reconstructed
     std::unique_ptr<Visu> _visu_; ///< Visualisation engine
+    
+    Sinogram prompt_sinogram_manager; // support worker class for calculation of prompt hits sinograms 
+    Sinogram delayed_sinogram_manager; // support worker class for calculation of delayed hits sinograms 
     
   };
 
